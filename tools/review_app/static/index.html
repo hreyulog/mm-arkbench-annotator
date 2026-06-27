@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MM-ArkBench Review App</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel2: #172033;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: #334155;
+      --blue: #60a5fa;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --chip: #1e293b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(120deg, #0b1020, #111827 35%, #0f172a);
+      overflow: hidden;
+    }
+    header {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(15, 23, 42, 0.92);
+    }
+    header h1 { font-size: 17px; margin: 0; letter-spacing: 0.2px; }
+    header .stat { color: var(--muted); font-size: 13px; }
+    button, select, input, textarea {
+      border: 1px solid var(--line);
+      background: #0b1220;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--blue); }
+    .primary { background: #1d4ed8; border-color: #2563eb; }
+    .accept { background: #166534; border-color: #22c55e; }
+    .reject { background: #7f1d1d; border-color: #ef4444; }
+    .correct { background: #78350f; border-color: #f59e0b; }
+    main {
+      height: calc(100vh - 56px);
+      display: grid;
+      grid-template-columns: 300px minmax(340px, 42vw) minmax(440px, 1fr);
+    }
+    aside, section {
+      min-height: 0;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+    }
+    aside { background: rgba(15, 23, 42, 0.75); }
+    .query-list { padding: 10px; }
+    .query-card {
+      padding: 10px;
+      margin-bottom: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(30, 41, 59, 0.55);
+      cursor: pointer;
+    }
+    .query-card.active { outline: 2px solid var(--blue); }
+    .query-card.done { opacity: 0.62; }
+    .small { color: var(--muted); font-size: 12px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: #cbd5e1;
+      font-size: 12px;
+      margin: 2px 3px 2px 0;
+    }
+    .image-panel { padding: 14px; background: rgba(17, 24, 39, 0.8); }
+    .image-box {
+      display: grid;
+      place-items: center;
+      background: #020617;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      min-height: 360px;
+      overflow: hidden;
+    }
+    .image-box img { max-width: 100%; max-height: 68vh; object-fit: contain; }
+    .meta { padding: 12px 0; line-height: 1.45; }
+    a { color: #93c5fd; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .right { padding: 14px; background: rgba(15, 23, 42, 0.68); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+    .file-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      background: rgba(17, 24, 39, 0.9);
+      overflow: hidden;
+    }
+    .file-head {
+      padding: 10px 12px;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    pre {
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      max-height: 360px;
+      color: #d1d5db;
+      background: #020617;
+      font-size: 12px;
+      line-height: 1.45;
+      tab-size: 2;
+    }
+    textarea { width: 100%; min-height: 70px; resize: vertical; }
+    .empty { color: var(--muted); padding: 20px; }
+    .search, .filter { margin: 10px; width: calc(100% - 20px); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MM-ArkBench Pilot Review</h1>
+    <span id="stats" class="stat">loading…</span>
+    <button id="exportJsonl" class="primary">导出 JSONL</button>
+    <button id="exportCsv">导出 CSV</button>
+    <button id="clearLocal">清空本地审核</button>
+  </header>
+  <main>
+    <aside>
+      <input id="search" class="search" placeholder="搜索 repo/path/query/OCR…" />
+      <select id="queryTypeFilter" class="filter"></select>
+      <div id="queryList" class="query-list"></div>
+    </aside>
+    <section class="image-panel">
+      <div class="image-box"><img id="screenshot" alt="screenshot" /></div>
+      <div id="meta" class="meta"></div>
+    </section>
+    <section class="right">
+      <div class="toolbar">
+        <button class="accept" data-decision="accept">Accept 自动标签</button>
+        <button class="correct" data-decision="correct">Correct 修改标签</button>
+        <button class="reject" data-decision="reject">Reject 非可用样本</button>
+        <button data-decision="skip">Skip 稍后看</button>
+      </div>
+      <label class="small">如果选择 correct，在这里填正确 file_id 或路径，逗号分隔：</label>
+      <input id="correctFiles" style="width: 100%; margin: 6px 0 10px" placeholder="file_xxx 或 entry/src/main/ets/pages/Index.ets" />
+      <label class="small">审核备注：</label>
+      <textarea id="notes" placeholder="比如：截图不是 UI；匹配到子组件但缺页面；应改为 xxx.ets"></textarea>
+      <h3>自动匹配文件</h3>
+      <div id="files"></div>
+    </section>
+  </main>
+
+  <script>
+    const stateKey = "mmarkbench_review_v2";
+    let items = [];
+    let current = 0;
+    let reviews = JSON.parse(localStorage.getItem(stateKey) || "{}");
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const short = (s, n=90) => String(s || "").length > n ? String(s).slice(0, n) + "…" : String(s || "");
+
+    async function init() {
+      items = await fetch("review_items.json").then(r => r.json());
+      renderQueryTypeFilter();
+      renderList();
+      show(0);
+    }
+
+    function renderQueryTypeFilter() {
+      const counts = {};
+      for (const item of items) {
+        const t = item.query_type || "unknown";
+        counts[t] = (counts[t] || 0) + 1;
+      }
+      const options = [`<option value="">All query types (${items.length})</option>`]
+        .concat(Object.keys(counts).sort().map(t => `<option value="${esc(t)}">${esc(t)} (${counts[t]})</option>`));
+      $("queryTypeFilter").innerHTML = options.join("");
+    }
+
+    function filteredItems() {
+      const q = $("search").value.toLowerCase().trim();
+      const type = $("queryTypeFilter").value;
+      return items.map((item, idx) => [item, idx]).filter(([item]) =>
+        (!type || (item.query_type || "unknown") === type) &&
+        (!q || [item.query_id, item.repo_key, item.source_path, item.ocr_text, item.caption, item.context_text].join(" ").toLowerCase().includes(q))
+      );
+    }
+
+    function renderList() {
+      const rows = filteredItems();
+      const done = Object.keys(reviews).length;
+      const typeCounts = {};
+      for (const item of items) {
+        const t = item.query_type || "unknown";
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
+      }
+      const typeSummary = Object.entries(typeCounts).map(([k, v]) => `${k}:${v}`).join(" · ");
+      $("stats").textContent = `${items.length} samples · shown ${rows.length} · reviewed ${done} · ${typeSummary}`;
+      $("queryList").innerHTML = rows.map(([item, idx]) => {
+        const r = reviews[item.query_id];
+        return `<div class="query-card ${idx === current ? "active" : ""} ${r ? "done" : ""}" onclick="show(${idx})">
+          <div><b>${esc(item.split)}</b> <span class="small">${esc(item.query_id)}</span></div>
+          <div>${esc(short(item.source_path || item.source_url, 70))}</div>
+          <div class="small">${esc(short(item.repo_key, 58))}</div>
+          <span class="chip">${esc(item.query_type || "unknown")}</span>
+          <span class="chip">${esc(item.source_type || "unknown")}</span>
+          <span class="chip">conf ${Number(item.label_confidence || 0).toFixed(2)}</span>
+          ${r ? `<span class="chip">${esc(r.decision)}</span>` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    function show(idx) {
+      current = idx;
+      const item = items[idx];
+      if (!item) return;
+      const r = reviews[item.query_id] || {};
+      $("screenshot").src = item.image;
+      $("correctFiles").value = r.correct_files || "";
+      $("notes").value = r.notes || "";
+      $("meta").innerHTML = `
+        <div><span class="chip">${esc(item.split)}</span><span class="chip">${esc(item.query_type || "unknown")}</span><span class="chip">${esc(item.source_type)}</span><span class="chip">${esc(item.label_status || "automatic")}</span><span class="chip">conf ${Number(item.label_confidence || 0).toFixed(2)}</span></div>
+        <p><b>Repo:</b> <a href="${esc(item.repo_url)}" target="_blank">${esc(item.repo_key)}</a></p>
+        <p><b>Image/source:</b> <a href="${esc(item.source_url)}" target="_blank">${esc(item.source_path || item.source_url)}</a></p>
+        <p><b>README:</b> ${esc(item.markdown_path || "—")} ${item.markdown_line ? `: line ${esc(item.markdown_line)}` : ""}<br><b>Heading:</b> ${esc(item.markdown_heading || "—")}</p>
+        <p><b>Caption:</b> ${esc(item.caption || "—")}</p>
+        <p><b>OCR:</b> ${esc(item.ocr_text || "—")}</p>
+        <p><b>Context:</b> ${esc(short(item.context_text || "—", 1000))}</p>
+        <details open><summary><b>README candidates</b></summary>
+          ${(item.readme_candidates || []).length ? item.readme_candidates.map(c => `
+            <div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;background:#0b1220">
+              <div class="small">${esc(c.markdown_path || "")}${c.line ? `:${esc(c.line)}` : ""}</div>
+              <div><b>${esc(c.heading || "—")}</b></div>
+              <div>${esc(short(c.context || "", 500))}</div>
+            </div>
+          `).join("") : `<div class="small">No README/Markdown image reference recorded.</div>`}
+        </details>
+        <p><b>Evidence:</b><br>${(item.matching_evidence || []).map(e => `<span class="chip">${esc(short(e, 80))}</span>`).join(" ")}</p>
+      `;
+      $("files").innerHTML = item.positive_files.length ? item.positive_files.map(file => `
+        <div class="file-card">
+          <div class="file-head">
+            <div>
+              <b>${esc(file.path)}</b><br>
+              <span class="small">${esc(file.file_id)} ${file.is_arkui_page ? " · ArkUI page" : ""}</span>
+            </div>
+            <button onclick="copyText('${esc(file.file_id)}')">复制 file_id</button>
+          </div>
+          <div style="padding: 10px 12px">
+            ${(file.ui_text || []).slice(0, 12).map(t => `<span class="chip">${esc(short(t, 28))}</span>`).join(" ")}
+          </div>
+          <pre>${esc(file.code || "// code not redistributed for this file")}</pre>
+          ${(file.symbols || []).length ? `<details style="padding: 10px 12px"><summary>Symbols (${file.symbols.length})</summary>${file.symbols.map(s => `
+            <div style="margin: 10px 0">
+              <b>${esc(s.qualified_name)}</b> <span class="chip">${esc(s.symbol_type)}</span>
+              <pre>${esc(s.code || "")}</pre>
+            </div>`).join("")}</details>` : ""}
+        </div>`).join("") : `<div class="empty">没有自动正例文件。</div>`;
+      renderList();
+    }
+
+    function saveDecision(decision) {
+      const item = items[current];
+      reviews[item.query_id] = {
+        query_id: item.query_id,
+        decision,
+        correct_files: $("correctFiles").value.trim(),
+        notes: $("notes").value.trim(),
+        original_positive_file_ids: item.positive_file_ids,
+        original_positive_symbol_ids: item.positive_symbol_ids,
+        query_type: item.query_type,
+        label_status: item.label_status,
+        repo_id: item.repo_id,
+        repo_key: item.repo_key,
+        source_url: item.source_url,
+        source_path: item.source_path,
+        reviewed_at: new Date().toISOString()
+      };
+      localStorage.setItem(stateKey, JSON.stringify(reviews));
+      show(Math.min(current + 1, items.length - 1));
+    }
+
+    function copyText(text) { navigator.clipboard?.writeText(text); }
+
+    function download(name, text, type="text/plain") {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.querySelectorAll("[data-decision]").forEach(btn => btn.onclick = () => saveDecision(btn.dataset.decision));
+    $("search").oninput = renderList;
+    $("queryTypeFilter").onchange = () => {
+      current = filteredItems()[0]?.[1] ?? 0;
+      renderList();
+      show(current);
+    };
+    $("exportJsonl").onclick = () => download("mmarkbench_review.jsonl", Object.values(reviews).map(r => JSON.stringify(r)).join("\n") + "\n");
+    $("exportCsv").onclick = () => {
+      const cols = ["query_id","decision","correct_files","notes","repo_key","source_url","source_path","reviewed_at"];
+      const csv = [cols.join(",")].concat(Object.values(reviews).map(r => cols.map(c => `"${String(r[c] ?? "").replaceAll('"','""')}"`).join(","))).join("\n");
+      download("mmarkbench_review.csv", csv, "text/csv");
+    };
+    $("clearLocal").onclick = () => {
+      if (confirm("确定清空浏览器本地审核记录？")) {
+        reviews = {};
+        localStorage.removeItem(stateKey);
+        show(current);
+      }
+    };
+    window.show = show;
+    window.copyText = copyText;
+    init();
+  </script>
+</body>
+</html>
