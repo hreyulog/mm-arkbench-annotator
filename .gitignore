@@ -4,3 +4,21 @@ __pycache__/
 .pytest_cache/
 /review_app/
 *.pyc
+
+# Local/generated datasets and artifacts
+/hf_dataset/
+/hf_dataset_*/
+/data/
+/intermediate/
+*.parquet
+*.jsonl
+*.ndjson
+*.csv
+
+# Secrets / signing materials
+*token*
+*.p12
+*.p7b
+*.cer
+*.pem
+*.key

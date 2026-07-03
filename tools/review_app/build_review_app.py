@@ -97,6 +97,26 @@ def balanced_review_queries(queries: list[dict], limit: int, min_per_query_type:
     return selected
 
 
+def evidence_value(evidence: list[str], prefix: str, default: str = "") -> str:
+    for item in evidence or []:
+        if item.startswith(prefix):
+            return item[len(prefix):]
+    return default
+
+
+def evidence_source_type(evidence: list[str]) -> str:
+    return evidence_value(evidence, "source:", "unknown")
+
+
+def evidence_readme_candidates(evidence: list[str]) -> list[dict]:
+    raw = evidence_value(evidence, "readme:candidates_json=", "[]")
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
 def iter_local_query_images(dataset_dir: Path | None) -> Iterable[Path]:
     if not dataset_dir:
         return []
@@ -221,11 +241,14 @@ def build_review_app(
             )
 
         repo = repos.get(query["repo_id"], {})
-        readme_candidates_raw = query.get("readme_candidates_json") or "[]"
-        try:
-            readme_candidates = json.loads(readme_candidates_raw)
-        except json.JSONDecodeError:
-            readme_candidates = []
+        evidence = list(query.get("matching_evidence") or [])
+        readme_candidates = evidence_readme_candidates(evidence)
+        if not readme_candidates and query.get("readme_candidates_json"):
+            try:
+                parsed = json.loads(query.get("readme_candidates_json") or "[]")
+                readme_candidates = parsed if isinstance(parsed, list) else []
+            except json.JSONDecodeError:
+                readme_candidates = []
 
         items.append(
             {
@@ -238,18 +261,18 @@ def build_review_app(
                 "commit": query["commit"],
                 "source_url": query["source_url"],
                 "source_path": query.get("source_path", ""),
-                "source_type": query["source_type"],
+                "source_type": query.get("source_type") or evidence_source_type(evidence),
                 "image": f"assets/{asset_name}",
                 "caption": query.get("caption", ""),
                 "ocr_text": query.get("ocr_text", ""),
                 "context_text": query.get("context_text", ""),
-                "markdown_path": query.get("markdown_path", ""),
-                "markdown_heading": query.get("markdown_heading", ""),
-                "markdown_line": query.get("markdown_line", 0),
+                "markdown_path": query.get("markdown_path") or evidence_value(evidence, "readme:markdown_path="),
+                "markdown_heading": query.get("markdown_heading") or evidence_value(evidence, "readme:heading="),
+                "markdown_line": query.get("markdown_line") or int(evidence_value(evidence, "readme:line=", "0") or 0),
                 "readme_candidates": readme_candidates,
                 "label_status": query.get("label_status", "automatic"),
                 "label_confidence": query.get("label_confidence", 0.0),
-                "matching_evidence": list(query.get("matching_evidence") or []),
+                "matching_evidence": evidence,
                 "positive_file_ids": list(query.get("positive_file_ids") or []),
                 "positive_symbol_ids": list(query.get("positive_symbol_ids") or []),
                 "positive_files": positive_files,
